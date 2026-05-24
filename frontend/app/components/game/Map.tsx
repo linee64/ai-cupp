@@ -308,7 +308,8 @@ function Mountain({
 }
 
 function RemotePlayers() {
-  const { remotePlayers } = useGame();
+  const { remotePlayers, roomCode, playerName } = useGame();
+  console.log("[RemotePlayers component rendered] roomCode:", roomCode, "playerName:", playerName, "remotePlayers count:", remotePlayers.length, remotePlayers);
 
   return (
     <>

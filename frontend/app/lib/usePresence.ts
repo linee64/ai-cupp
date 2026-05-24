@@ -46,6 +46,11 @@ export function usePresence({
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const getPositionRef = useRef(getPosition);
+  useEffect(() => {
+    getPositionRef.current = getPosition;
+  });
+
   const BROADCAST_INTERVAL = 80; // ms — ~12 position updates per second
 
   useEffect(() => {
@@ -54,6 +59,8 @@ export function usePresence({
     const playerId = `${roomCode}:${playerName}`;
     const channelName = `presence:${roomCode}`;
 
+    console.log("[Presence] Subscribing to channel:", channelName, "with playerId:", playerId);
+
     const channel = supabase.channel(channelName, {
       config: { presence: { key: playerId } },
     });
@@ -61,6 +68,7 @@ export function usePresence({
     channel
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState<RemotePlayerState>();
+        console.log("[Presence sync] state keys:", Object.keys(state), state);
         const others: RemotePlayerState[] = [];
 
         for (const key of Object.keys(state)) {
@@ -69,14 +77,22 @@ export function usePresence({
           const presence = state[key][0];
           if (presence) others.push(presence as unknown as RemotePlayerState);
         }
+        console.log("[Presence sync] updated remote players list:", others);
         setRemotePlayers(others);
       })
+      .on("presence", { event: "join" }, ({ key, newPresences }) => {
+        console.log("[Presence join] key:", key, "newPresences:", newPresences);
+      })
+      .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
+        console.log("[Presence leave] key:", key, "leftPresences:", leftPresences);
+      })
       .subscribe(async (status) => {
+        console.log("[Presence subscribe] status:", status);
         if (status === "SUBSCRIBED") {
           // Start broadcasting position
           const broadcast = async () => {
-            const pos = getPosition();
-            await channel.track({
+            const pos = getPositionRef.current();
+            const trackPayload = {
               playerId,
               playerName,
               team,
@@ -87,7 +103,15 @@ export function usePresence({
               activeWeapon: pos.activeWeapon,
               shootTick: pos.shootTick,
               throwTick: pos.throwTick,
-            });
+            };
+            try {
+              const trackStatus = await channel.track(trackPayload);
+              if (trackStatus !== "ok") {
+                console.warn("[Presence track] Non-ok track status:", trackStatus);
+              }
+            } catch (err) {
+              console.error("[Presence track] Error tracking presence:", err);
+            }
           };
 
           await broadcast();
@@ -98,6 +122,7 @@ export function usePresence({
     channelRef.current = channel;
 
     return () => {
+      console.log("[Presence] Cleaning up channel:", channelName);
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (channelRef.current) {
         channelRef.current.untrack();

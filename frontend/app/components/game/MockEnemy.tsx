@@ -57,12 +57,14 @@ export default function MockEnemy({
   const bodyColor = ENEMY_COLORS[index] ?? ENEMY_COLORS[0];
   const headColor = lightenColor(bodyColor);
   const legColor = darkenColor(bodyColor);
-
   const hitFlashRef = useRef(0);
   const squashRef = useRef(0);
   const deathTimerRef = useRef(0);
   const prevHealthRef = useRef(state.health);
   const wasDeadRef = useRef(state.dead);
+
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   useEffect(() => {
     if (state.health < prevHealthRef.current && !state.dead) {
@@ -71,6 +73,9 @@ export default function MockEnemy({
     }
     if (state.dead && !wasDeadRef.current) {
       deathTimerRef.current = 0;
+    }
+    if (bodyRef.current) {
+      bodyRef.current.userData.dead = state.dead;
     }
     prevHealthRef.current = state.health;
     wasDeadRef.current = state.dead;
@@ -82,7 +87,9 @@ export default function MockEnemy({
     const bodyMat = bodyMatRef.current;
     if (!group || !body) return;
 
-    if (state.dead) {
+    const s = stateRef.current;
+
+    if (s.dead) {
       deathTimerRef.current += delta;
       group.rotation.y += 0.3;
 
@@ -98,7 +105,6 @@ export default function MockEnemy({
     const time = performance.now() * 0.001;
     const bob = Math.sin(time * 2 + index * 0.5) * 0.04;
     group.position.y = position[1] + bob;
-
     if (leftArmRef.current) {
       leftArmRef.current.rotation.z = 0.4 - bob * 2;
     }

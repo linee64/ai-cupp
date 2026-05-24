@@ -16,6 +16,9 @@ export default function DefendBox() {
   const boxRef = useRef<THREE.Mesh>(null);
   const ringMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const shakeRef = useRef<THREE.Group>(null);
+
+  const stateRef = useRef({ defendBoxHP, defendBoxDestroyed });
+  stateRef.current = { defendBoxHP, defendBoxDestroyed };
   const labelTexture = useMemo(() => createBombBoxLabelTexture(), []);
 
   const sandbagSegments = useMemo(() => {
@@ -59,8 +62,9 @@ export default function DefendBox() {
       ringMatRef.current.emissiveIntensity = pulse;
     }
 
-    if (!shakeRef.current || defendBoxDestroyed) return;
-    if (defendBoxHP < 100) {
+    const s = stateRef.current;
+    if (!shakeRef.current || s.defendBoxDestroyed) return;
+    if (s.defendBoxHP < 100) {
       shakeRef.current.position.set(
         (Math.random() - 0.5) * 0.06,
         0,

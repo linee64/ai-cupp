@@ -12,7 +12,6 @@ import {
 import { COLLIDERS, resolveCollisions } from "./colliders";
 import { BALLOON_BLUE, MOCK_ENEMY_POSITIONS } from "./gameConstants";
 import { type MockEnemyId, useGame } from "./GameContext";
-import { usePresence } from "../../lib/usePresence";
 
 const BASE_MOVE_SPEED = 0.065;
 const GROUND_Y = 1.0;
@@ -107,27 +106,7 @@ export default function FPSPlayer() {
     setRemotePlayers,
   } = useGame();
 
-  // Broadcast our position and receive all other players via Supabase Presence
-  const presencePlayers = usePresence({
-    roomCode,
-    playerName,
-    team,
-    enabled: !!roomCode && !!playerName,
-    getPosition: () => ({
-      x: playerViewRef.current.x,
-      y: playerY.current,
-      z: playerViewRef.current.z,
-      yaw: playerViewRef.current.yaw,
-      activeWeapon,
-      shootTick: weaponShootTick,
-      throwTick: weaponThrowTick,
-    }),
-  });
 
-  // Sync remote players into GameContext so Map can render them
-  useEffect(() => {
-    setRemotePlayers(presencePlayers);
-  }, [presencePlayers, setRemotePlayers]);
 
   useEffect(() => {
     camera.position.set(pos.x, playerY.current, pos.z);
@@ -369,6 +348,7 @@ export default function FPSPlayer() {
     camera.getWorldDirection(forward.current);
     playerViewRef.current = {
       x: pos.x,
+      y: playerY.current,
       z: pos.z,
       yaw: Math.atan2(forward.current.x, forward.current.z),
     };

@@ -66,6 +66,7 @@ export const HIT_STAGE_COLORS = [
 
 export type PlayerView = {
   x: number;
+  y: number;
   z: number;
   yaw: number;
 };
@@ -204,7 +205,9 @@ export function GameProvider({
   const reloadStartMarkerRef = useRef(MARKER_MAX_AMMO);
   const reloadStartBalloonRef = useRef(BALLOON_MAX_AMMO);
   const activeWeaponRef = useRef<1 | 2>(1);
-  const playerViewRef = useRef<PlayerView>({ x: 14, z: 0, yaw: 0 });
+  const playerViewRef = useRef<PlayerView>({ x: 14, y: 1.0, z: 0, yaw: 0 });
+  const weaponShootTickRef = useRef(0);
+  const weaponThrowTickRef = useRef(0);
   const [fps, setFps] = useState(120);
 
   posRef.current = pos;
@@ -258,39 +261,170 @@ export function GameProvider({
       document.removeEventListener("pointerlockchange", handleLockChange);
   }, []);
 
-  // ── Supabase broadcast: subscribe to room game events ──────────────────────
+  // ── Supabase unified sync (Presence + Broadcast) ───────────────────────────
   useEffect(() => {
-    if (!roomCode) return;
+    if (!roomCode || !playerName) return;
 
-    const channel = supabase.channel(`game-sync:${roomCode}`, {
-      config: { broadcast: { self: false } },
+    const playerId = `${roomCode}:${playerName}`;
+    const channelName = `room:${roomCode}`;
+
+    console.log("[RoomSync] Connecting to channel:", channelName, "as", playerId);
+
+    const channel = supabase.channel(channelName, {
+      config: {
+        presence: { key: playerId },
+        broadcast: { self: false },
+      },
     });
 
+    // 1. Listen to broadcast game events
     channel
       .on("broadcast", { event: "splatter" }, ({ payload }) => {
+        console.log("[RoomSync Broadcast receive] splatter:", payload);
         addSplatterBase(payload.position, payload.normal, payload.color, payload.radius);
       })
       .on("broadcast", { event: "damageMock" }, ({ payload }) => {
+        console.log("[RoomSync Broadcast receive] damageMock:", payload);
         damageMockBase(payload.id, payload.hitPoint, payload.playerPos, payload.damage);
       })
       .on("broadcast", { event: "damageDefendBox" }, ({ payload }) => {
+        console.log("[RoomSync Broadcast receive] damageDefendBox:", payload);
         damageDefendBoxBase(payload.amount);
       })
       .on("broadcast", { event: "repairDefendBox" }, ({ payload }) => {
+        console.log("[RoomSync Broadcast receive] repairDefendBox:", payload);
         repairDefendBoxBase(payload.amount);
       })
-      .subscribe();
+      .on("broadcast", { event: "playerMove" }, ({ payload }) => {
+        setRemotePlayers((prev) => {
+          const existing = prev.find((p) => p.playerId === payload.playerId);
+          if (existing) {
+            return prev.map((p) =>
+              p.playerId === payload.playerId
+                ? {
+                    ...p,
+                    x: payload.x,
+                    y: payload.y,
+                    z: payload.z,
+                    yaw: payload.yaw,
+                    activeWeapon: payload.activeWeapon,
+                    shootTick: payload.shootTick,
+                    throwTick: payload.throwTick,
+                  }
+                : p
+            );
+          } else {
+            // Dynamic fallback for early broadcast packets before presence sync
+            return [
+              ...prev,
+              {
+                playerId: payload.playerId,
+                playerName: payload.playerName,
+                team: payload.team,
+                x: payload.x,
+                y: payload.y,
+                z: payload.z,
+                yaw: payload.yaw,
+                activeWeapon: payload.activeWeapon,
+                shootTick: payload.shootTick,
+                throwTick: payload.throwTick,
+              },
+            ];
+          }
+        });
+      });
+
+    // 2. Listen to presence sync events
+    channel
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState<any>();
+        console.log("[RoomSync Presence] sync state keys:", Object.keys(state), state);
+        
+        setRemotePlayers((prev) => {
+          const newPlayers: RemotePlayerState[] = [];
+          for (const key of Object.keys(state)) {
+            if (key === playerId) continue;
+            const presence = state[key][0];
+            if (presence) {
+              const existing = prev.find((p) => p.playerId === presence.playerId);
+              newPlayers.push({
+                playerId: presence.playerId,
+                playerName: presence.playerName,
+                team: presence.team,
+                x: existing ? existing.x : (presence.team === "defend" ? 14 : 14),
+                y: existing ? existing.y : 1.0,
+                z: existing ? existing.z : (presence.team === "defend" ? -14 : 14),
+                yaw: existing ? existing.yaw : 0,
+                activeWeapon: existing ? existing.activeWeapon : 1,
+                shootTick: existing ? existing.shootTick : 0,
+                throwTick: existing ? existing.throwTick : 0,
+              });
+            }
+          }
+          console.log("[RoomSync Presence] updated remote players list:", newPlayers);
+          return newPlayers;
+        });
+      })
+      .on("presence", { event: "join" }, ({ key, newPresences }) => {
+        console.log("[RoomSync Presence] join key:", key, newPresences);
+      })
+      .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
+        console.log("[RoomSync Presence] leave key:", key, leftPresences);
+      });
+
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    // 3. Subscribe, track presence once, and start broadcast movement loop
+    channel.subscribe(async (status) => {
+      console.log("[RoomSync Subscribe] status:", status);
+      if (status === "SUBSCRIBED") {
+        // Track presence once to register user metadata on the channel
+        try {
+          await channel.track({ playerId, playerName, team });
+        } catch (err) {
+          console.error("[RoomSync Presence track] Error tracking presence:", err);
+        }
+
+        const BROADCAST_INTERVAL = 100; // ms — 10 updates per second (smooth, fits Realtime rate limits)
+
+        const sendMovement = () => {
+          const pos = playerViewRef.current;
+          if (!pos) return;
+          channel.send({
+            type: "broadcast",
+            event: "playerMove",
+            payload: {
+              playerId,
+              playerName,
+              team,
+              x: Math.round(pos.x * 100) / 100,
+              y: Math.round(pos.y * 100) / 100,
+              z: Math.round(pos.z * 100) / 100,
+              yaw: Math.round(pos.yaw * 1000) / 1000,
+              activeWeapon: activeWeaponRef.current,
+              shootTick: weaponShootTickRef.current,
+              throwTick: weaponThrowTickRef.current,
+            },
+          });
+        };
+
+        intervalId = setInterval(sendMovement, BROADCAST_INTERVAL);
+      }
+    });
 
     syncChannelRef.current = channel;
 
     return () => {
+      console.log("[RoomSync] Cleaning up channel:", channelName);
+      if (intervalId) clearInterval(intervalId);
       if (syncChannelRef.current) {
+        syncChannelRef.current.untrack();
         supabase.removeChannel(syncChannelRef.current);
         syncChannelRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomCode]);
+  }, [roomCode, playerName, team]);
 
   const addSplatterBase = useCallback(
     (
@@ -333,6 +467,7 @@ export function GameProvider({
       addSplatterBase(position, normal, col, rad);
 
       if (syncChannelRef.current) {
+        console.log("[RoomSync Broadcast send] splatter:", col);
         syncChannelRef.current.send({
           type: "broadcast",
           event: "splatter",
@@ -412,6 +547,7 @@ export function GameProvider({
       damageMockBase(id, hitPoint, playerPos, damage);
 
       if (syncChannelRef.current) {
+        console.log("[RoomSync Broadcast send] damageMock:", id, damage);
         syncChannelRef.current.send({
           type: "broadcast",
           event: "damageMock",
@@ -436,6 +572,7 @@ export function GameProvider({
     setCoins((c) => c - 50);
     repairDefendBoxBase(100);
     if (syncChannelRef.current) {
+      console.log("[RoomSync Broadcast send] repairDefendBox: 100");
       syncChannelRef.current.send({
         type: "broadcast",
         event: "repairDefendBox",
@@ -543,6 +680,7 @@ export function GameProvider({
     (amount: number) => {
       damageDefendBoxBase(amount);
       if (syncChannelRef.current) {
+        console.log("[RoomSync Broadcast send] damageDefendBox:", amount);
         syncChannelRef.current.send({
           type: "broadcast",
           event: "damageDefendBox",
@@ -554,7 +692,11 @@ export function GameProvider({
   );
 
   const triggerWeaponThrow = useCallback(() => {
-    setWeaponThrowTick((t) => t + 1);
+    setWeaponThrowTick((t) => {
+      const next = t + 1;
+      weaponThrowTickRef.current = next;
+      return next;
+    });
   }, []);
 
   const canShoot = useCallback(() => {
@@ -571,7 +713,11 @@ export function GameProvider({
     lastShotRef.current = Date.now();
     setMarkerAmmo((prev) => Math.max(0, prev - 1));
     setMuzzleFlash(true);
-    setWeaponShootTick((t) => t + 1);
+    setWeaponShootTick((t) => {
+      const next = t + 1;
+      weaponShootTickRef.current = next;
+      return next;
+    });
     flashCrosshair("shoot", 80);
     requestAnimationFrame(() => setMuzzleFlash(false));
   }, [flashCrosshair]);

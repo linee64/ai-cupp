@@ -12,9 +12,12 @@ const DEFEND_COLOR = "#00c2ff";
 
 export default function RemotePlayer({ player }: { player: RemotePlayerState }) {
   const groupRef = useRef<THREE.Group>(null);
-  const targetPos = useRef(new THREE.Vector3(player.x, 1.0, player.z));
+  const targetPos = useRef(new THREE.Vector3(player.x, player.y ?? 1.0, player.z));
   const targetYaw = useRef(player.yaw);
   const bobRef = useRef(0);
+
+  const playerRef = useRef(player);
+  playerRef.current = player;
 
   const prevShootTick = useRef(player.shootTick || 0);
   const prevThrowTick = useRef(player.throwTick || 0);
@@ -45,21 +48,23 @@ export default function RemotePlayer({ player }: { player: RemotePlayerState }) 
     const group = groupRef.current;
     if (!group) return;
 
-    targetPos.current.set(player.x, 1.0, player.z);
-    group.position.lerp(targetPos.current, Math.min(1, delta * 18));
-
-    // Lerp yaw
-    const dy = ((player.yaw - targetYaw.current + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-    targetYaw.current += dy * Math.min(1, delta * 18);
-    group.rotation.y = -targetYaw.current;
+    const p = playerRef.current;
 
     // Bob
     bobRef.current += delta * 2;
-    group.position.y = 1.0 + Math.sin(bobRef.current) * 0.04;
+    const bobOffset = Math.sin(bobRef.current) * 0.04;
+
+    targetPos.current.set(p.x, (p.y ?? 1.0) + bobOffset, p.z);
+    group.position.lerp(targetPos.current, Math.min(1, delta * 18));
+
+    // Lerp yaw
+    const dy = ((p.yaw - targetYaw.current + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    targetYaw.current += dy * Math.min(1, delta * 18);
+    group.rotation.y = -targetYaw.current;
   });
 
   return (
-    <group ref={groupRef} position={[player.x, 1.0, player.z]}>
+    <group ref={groupRef} position={[player.x, player.y ?? 1.0, player.z]}>
       {/* Body */}
       <mesh castShadow scale={[1, 1.15, 1]}>
         <sphereGeometry args={[0.45, 12, 10]} />
