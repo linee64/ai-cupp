@@ -48,6 +48,40 @@ export default function LobbyScreen() {
     };
   }, []);
 
+  // Robust fallback polling every 3 seconds
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    
+    if (lobbyState === "waiting" && roomCode) {
+      interval = setInterval(() => {
+        fetchPlayers(roomCode);
+        
+        // Non-hosts poll to see if game status updated to starting
+        if (!isHost) {
+          supabase
+            .from("rooms")
+            .select("status")
+            .eq("code", roomCode.toUpperCase())
+            .maybeSingle()
+            .then(({ data }) => {
+              if (data && data.status === "starting") {
+                router.push(
+                  `/game?room=${roomCode.toUpperCase()}&player=${encodeURIComponent(
+                    callsign
+                  )}&team=${team}`
+                );
+              }
+            });
+        }
+      }, 3000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [lobbyState, roomCode, isHost, callsign, team, router]);
+
+
   const handleCopyCode = useCallback(async () => {
     if (!roomCode) return;
     try {
