@@ -125,6 +125,8 @@ export default function HUD() {
     activeWeapon,
     setActiveWeapon,
     fps,
+    team,
+    playerName,
   } = useGame();
 
   const isReloading =
@@ -172,8 +174,15 @@ export default function HUD() {
         </div>
       </div>
 
-      <div className="absolute left-4 top-4">
+      <div className="absolute left-4 top-4 flex flex-col gap-2">
         <Minimap />
+        <div style={{ ...panel, padding: "8px 12px", minWidth: 140 }}>
+          <span className="font-mono text-[9px] text-muted tracking-wider block uppercase">PLAYER</span>
+          <span className="font-heading text-lg text-text tracking-wide block truncate">{playerName || 'PLAYER'}</span>
+          <span className="font-heading text-xs tracking-wider block" style={{ color: team === 'defend' ? '#00c2ff' : '#ff8844' }}>
+            {team === 'defend' ? '🛡 DEFEND' : '⚔ ATTACK'}
+          </span>
+        </div>
       </div>
 
       <div className="absolute right-4 top-4">
@@ -255,9 +264,9 @@ export default function HUD() {
           />
           <p
             className="mt-2 px-2 font-heading tracking-widest"
-            style={{ fontSize: 11, color: "#ff8844" }}
+            style={{ fontSize: 11, color: team === "defend" ? "#00c2ff" : "#ff8844" }}
           >
-            ⚔ ATTACK
+            {team === "defend" ? "🛡 DEFEND" : "⚔ ATTACK"}
           </p>
         </div>
       </div>

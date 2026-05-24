@@ -14,6 +14,8 @@ import TargetDestroyedOverlay from "../components/game/TargetDestroyedOverlay";
 import WeaponViewModel from "../components/game/WeaponViewModel";
 import DefendShop from "../components/game/DefendShop";
 
+import { supabase } from "../lib/supabase";
+
 const GameCanvas = dynamic(() => import("../components/game/GameCanvas"), {
   ssr: false,
   loading: () => (
@@ -40,9 +42,19 @@ function EscPauseHandler() {
 
 function GameContent() {
   const searchParams = useSearchParams();
+  const roomCode = searchParams.get("room");
   const teamParam = searchParams.get("team");
   const activeTeam: "attack" | "defend" =
     teamParam === "defend" ? "defend" : "attack";
+
+  useEffect(() => {
+    if (roomCode) {
+      supabase.from("rooms")
+        .update({ status: "active" })
+        .eq("code", roomCode)
+        .then(() => {});
+    }
+  }, [roomCode]);
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-bg">
@@ -61,13 +73,26 @@ function GameContent() {
   );
 }
 
+function GameContentWrapper() {
+  const searchParams = useSearchParams();
+  const roomCode = searchParams.get("room");
+  const playerName = searchParams.get("player");
+  const teamParam = searchParams.get("team");
+  const activeTeam: "attack" | "defend" =
+    teamParam === "defend" ? "defend" : "attack";
+
+  return (
+    <GameProvider team={activeTeam} playerName={playerName} roomCode={roomCode}>
+      <GameContent />
+    </GameProvider>
+  );
+}
+
 export default function GamePage() {
   return (
-    <GameProvider>
-      <Suspense fallback={<LoadingFallback />}>
-        <GameContent />
-      </Suspense>
-    </GameProvider>
+    <Suspense fallback={<LoadingFallback />}>
+      <GameContentWrapper />
+    </Suspense>
   );
 }
 
@@ -80,3 +105,4 @@ function LoadingFallback() {
     </div>
   );
 }
+

@@ -129,6 +129,9 @@ type GameContextValue = {
   playerViewRef: RefObject<PlayerView>;
   fps: number;
   setFps: React.Dispatch<React.SetStateAction<number>>;
+  team: "attack" | "defend";
+  playerName: string;
+  roomCode: string;
 };
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -141,10 +144,21 @@ const initialMocks = (): Record<MockEnemyId, MockEnemyState> => ({
   "mock-4": { health: 100, hitCount: 0, dead: false, paintMarks: [] },
 });
 
-export function GameProvider({ children }: { children: ReactNode }) {
+export function GameProvider({
+  children,
+  team = "attack",
+  playerName = "",
+  roomCode = "",
+}: {
+  children: ReactNode;
+  team?: "attack" | "defend";
+  playerName?: string | null;
+  roomCode?: string | null;
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const posRef = useRef({ x: 14, z: 0 });
-  const [pos, setPos] = useState({ x: 14, z: 0 });
+  const initialZ = team === "defend" ? -14 : 14;
+  const posRef = useRef({ x: 14, z: initialZ });
+  const [pos, setPos] = useState({ x: 14, z: initialZ });
   const [isLocked, setIsLocked] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(INITIAL_SECONDS);
@@ -614,6 +628,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       purchaseAmmoPack,
       purchaseSpeedBoost,
       purchaseBalloonPack,
+      team,
+      playerName: playerName || "",
+      roomCode: roomCode || "",
     }),
     [
       pos,
@@ -658,6 +675,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       purchaseAmmoPack,
       purchaseSpeedBoost,
       purchaseBalloonPack,
+      team,
+      playerName,
+      roomCode,
     ],
   );
 
