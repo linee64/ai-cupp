@@ -1,0 +1,375 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --border: #2a2a2a;
+  --accent: #e8ff00;
+  --accent2: #ff3d00;
+  --accent3: #00c2ff;
+  --text: #f0f0f0;
+  --muted: #666666;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent2: var(--accent2);
+  --color-accent3: var(--accent3);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --font-heading: var(--font-bebas);
+  --font-mono: var(--font-jetbrains);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-jetbrains), monospace;
+  min-width: 1024px;
+}
+
+.font-heading {
+  font-family: var(--font-bebas), sans-serif;
+}
+
+.font-mono {
+  font-family: var(--font-jetbrains), monospace;
+}
+
+/* Paint drip logo effect */
+.logo-drip {
+  position: relative;
+  display: inline-block;
+}
+
+.logo-drip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  transform: translateX(-50%);
+  width: 70%;
+  height: 12px;
+  background: var(--accent);
+  filter: blur(8px);
+  opacity: 0.6;
+  border-radius: 50%;
+}
+
+.logo-drip::before {
+  content: "";
+  position: absolute;
+  left: 45%;
+  bottom: -18px;
+  width: 8px;
+  height: 20px;
+  background: var(--accent);
+  filter: blur(4px);
+  opacity: 0.5;
+  border-radius: 0 0 50% 50%;
+}
+
+/* Animated paint splatter background */
+.paint-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.paint-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(40px);
+  opacity: 0.15;
+}
+
+.paint-blob-1 {
+  width: 280px;
+  height: 280px;
+  background: var(--accent);
+  top: -60px;
+  left: -60px;
+  animation: drift1 12s ease-in-out infinite;
+}
+
+.paint-blob-2 {
+  width: 220px;
+  height: 220px;
+  background: var(--accent2);
+  top: 20%;
+  right: -40px;
+  animation: drift2 15s ease-in-out infinite;
+}
+
+.paint-blob-3 {
+  width: 260px;
+  height: 260px;
+  background: var(--accent3);
+  bottom: -80px;
+  left: 30%;
+  animation: drift3 18s ease-in-out infinite;
+}
+
+.paint-blob-4 {
+  width: 180px;
+  height: 180px;
+  background: var(--accent);
+  bottom: 10%;
+  right: 15%;
+  animation: pulse-blob 8s ease-in-out infinite;
+}
+
+@keyframes drift1 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(30px, 20px) scale(1.1);
+  }
+}
+
+@keyframes drift2 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-25px, 35px) scale(1.05);
+  }
+}
+
+@keyframes drift3 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(20px, -30px) scale(1.08);
+  }
+}
+
+@keyframes pulse-blob {
+  0%,
+  100% {
+    opacity: 0.12;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.2;
+    transform: scale(1.15);
+  }
+}
+
+/* Button press animation */
+.btn-press {
+  transition: transform 0.1s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.btn-press:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn-press:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+/* Pulsing dot for waiting state */
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+/* Glow effects */
+.glow-accent {
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.glow-attack {
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent2) 50%, transparent);
+}
+
+.glow-defend {
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent3) 50%, transparent);
+}
+
+.glow-play {
+  box-shadow:
+    0 0 30px color-mix(in srgb, var(--accent) 50%, transparent),
+    0 0 60px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+/* Modal overlay */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+/* Pulsing overlay text */
+.pulse-text {
+  animation: pulse-text 2s ease-in-out infinite;
+}
+
+@keyframes pulse-text {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.click-enter-pulse {
+  animation: click-enter-pulse 2s ease-in-out infinite;
+}
+
+@keyframes click-enter-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.reload-pulse-dot {
+  display: inline-block;
+  animation: reload-pulse-dot 1s ease-in-out infinite;
+}
+
+@keyframes reload-pulse-dot {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.defend-box-label-pulse {
+  animation: defend-box-label-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes defend-box-label-pulse {
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Crosshair */
+.crosshair {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 999;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+
+.crosshair-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  border-radius: 50%;
+  background: var(--ch-color, #fff);
+  box-shadow: 0 0 1px #000;
+}
+
+.crosshair-line {
+  position: absolute;
+  background: var(--ch-color, #fff);
+  box-shadow: 0 0 1px #000;
+}
+
+.crosshair-line-top,
+.crosshair-line-bottom {
+  width: 1.5px;
+  height: 8px;
+  left: 50%;
+  margin-left: -0.75px;
+}
+
+.crosshair-line-left,
+.crosshair-line-right {
+  width: 8px;
+  height: 1.5px;
+  top: 50%;
+  margin-top: -0.75px;
+}
+
+.crosshair-line-top {
+  bottom: 5px;
+  transform: translateX(-50%);
+}
+
+.crosshair-line-bottom {
+  top: 5px;
+  transform: translateX(-50%);
+}
+
+.crosshair-line-left {
+  right: 5px;
+  transform: translateY(-50%);
+}
+
+.crosshair-line-right {
+  left: 5px;
+  transform: translateY(-50%);
+}
+
+/* Tooltip */
+.tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+}

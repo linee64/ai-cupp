@@ -1,0 +1,13 @@
+{
+  "name": "paintstrike-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PaintStrike backend — WebSocket server and game logic (placeholder)",
+  "scripts": {
+    "dev": "node src/index.js",
+    "start": "node src/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
