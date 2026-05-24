@@ -7,6 +7,7 @@ import { Html, Sky } from "@react-three/drei";
 import DefendBox from "./DefendBox";
 import FPSMeter from "./FPSMeter";
 import MockEnemy from "./MockEnemy";
+import RemotePlayer from "./RemotePlayer";
 import { MOCK_ENEMY_POSITIONS } from "./gameConstants";
 import PaintSplatters from "./PaintSplatters";
 import FPSPlayer from "./FPSPlayer";
@@ -19,6 +20,8 @@ import {
   type CoverDef,
 } from "./arenaVisuals";
 import { createSpawnZoneTexture, createTacticalGridFloorTexture } from "./textures";
+import { useGame } from "./GameContext";
+import { usePresence } from "../../lib/usePresence";
 
 const MOCK_ENEMIES = [
   { id: "mock-0" as const, position: MOCK_ENEMY_POSITIONS[0].position, rotationY: Math.PI, index: 0 },
@@ -305,6 +308,31 @@ function Mountain({
   );
 }
 
+function RemotePlayers() {
+  const { roomCode, playerName, team, playerViewRef } = useGame();
+
+  const remotePlayers = usePresence({
+    roomCode,
+    playerName,
+    team,
+    enabled: !!roomCode && !!playerName,
+    getPosition: () => ({
+      x: playerViewRef.current.x,
+      y: 1.0,
+      z: playerViewRef.current.z,
+      yaw: playerViewRef.current.yaw,
+    }),
+  });
+
+  return (
+    <>
+      {remotePlayers.map((p) => (
+        <RemotePlayer key={p.playerId} player={p} />
+      ))}
+    </>
+  );
+}
+
 export default function Map() {
   const floorTexture = useMemo(() => createTacticalGridFloorTexture(), []);
 
@@ -414,6 +442,7 @@ export default function Map() {
 
       <PaintSplatters />
       <FPSPlayer />
+      <RemotePlayers />
       <FPSMeter />
     </>
   );

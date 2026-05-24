@@ -12,6 +12,7 @@ import {
 import { COLLIDERS, resolveCollisions } from "./colliders";
 import { BALLOON_BLUE, MOCK_ENEMY_POSITIONS } from "./gameConstants";
 import { type MockEnemyId, useGame } from "./GameContext";
+import { usePresence } from "../../lib/usePresence";
 
 const BASE_MOVE_SPEED = 0.065;
 const GROUND_Y = 1.0;
@@ -98,7 +99,24 @@ export default function FPSPlayer() {
     defendBoxDestroyed,
     playerViewRef,
     speedMultiplier,
+    roomCode,
+    playerName,
+    team,
   } = useGame();
+
+  // Broadcast our position to all other players via Supabase Presence
+  usePresence({
+    roomCode,
+    playerName,
+    team,
+    enabled: !!roomCode && !!playerName,
+    getPosition: () => ({
+      x: playerViewRef.current.x,
+      y: playerY.current,
+      z: playerViewRef.current.z,
+      yaw: playerViewRef.current.yaw,
+    }),
+  });
 
   useEffect(() => {
     camera.position.set(pos.x, playerY.current, pos.z);
