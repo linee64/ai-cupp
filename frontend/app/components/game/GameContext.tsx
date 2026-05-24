@@ -14,6 +14,8 @@ import {
 import * as THREE from "three";
 import { randomSplatterColor, randomSplatterRadius } from "./textures";
 import { resumeAudio } from "../../lib/audio";
+import { supabase } from "../../lib/supabase";
+import type { RemotePlayerState } from "../../lib/usePresence";
 
 export const INITIAL_SECONDS = 150;
 export const BOX_MAX_HP = 500;
@@ -132,6 +134,8 @@ type GameContextValue = {
   team: "attack" | "defend";
   playerName: string;
   roomCode: string;
+  remotePlayers: RemotePlayerState[];
+  setRemotePlayers: React.Dispatch<React.SetStateAction<RemotePlayerState[]>>;
 };
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -156,6 +160,8 @@ export function GameProvider({
   roomCode?: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const syncChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const [remotePlayers, setRemotePlayers] = useState<RemotePlayerState[]>([]);
   const initialZ = team === "defend" ? -14 : 14;
   const posRef = useRef({ x: 14, z: initialZ });
   const [pos, setPos] = useState({ x: 14, z: initialZ });
@@ -252,10 +258,44 @@ export function GameProvider({
       document.removeEventListener("pointerlockchange", handleLockChange);
   }, []);
 
-  const addSplatter = useCallback(
+  // ── Supabase broadcast: subscribe to room game events ──────────────────────
+  useEffect(() => {
+    if (!roomCode) return;
+
+    const channel = supabase.channel(`game-sync:${roomCode}`, {
+      config: { broadcast: { self: false } },
+    });
+
+    channel
+      .on("broadcast", { event: "splatter" }, ({ payload }) => {
+        addSplatterBase(payload.position, payload.normal, payload.color, payload.radius);
+      })
+      .on("broadcast", { event: "damageMock" }, ({ payload }) => {
+        damageMockBase(payload.id, payload.hitPoint, payload.playerPos, payload.damage);
+      })
+      .on("broadcast", { event: "damageDefendBox" }, ({ payload }) => {
+        damageDefendBoxBase(payload.amount);
+      })
+      .on("broadcast", { event: "repairDefendBox" }, ({ payload }) => {
+        repairDefendBoxBase(payload.amount);
+      })
+      .subscribe();
+
+    syncChannelRef.current = channel;
+
+    return () => {
+      if (syncChannelRef.current) {
+        supabase.removeChannel(syncChannelRef.current);
+        syncChannelRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomCode]);
+
+  const addSplatterBase = useCallback(
     (
-      position: THREE.Vector3,
-      normal: THREE.Vector3,
+      position: { x: number; y: number; z: number },
+      normal: { x: number; y: number; z: number },
       color?: string,
       radius?: number,
     ) => {
@@ -263,7 +303,7 @@ export function GameProvider({
 
       const q = new THREE.Quaternion().setFromUnitVectors(
         new THREE.Vector3(0, 0, 1),
-        normal.clone().normalize(),
+        new THREE.Vector3(normal.x, normal.y, normal.z).normalize(),
       );
       const splatter: Splatter = {
         id: splatterIdRef.current++,
@@ -281,11 +321,38 @@ export function GameProvider({
     [],
   );
 
-  const damageMock = useCallback(
+  const addSplatter = useCallback(
+    (
+      position: THREE.Vector3,
+      normal: THREE.Vector3,
+      color?: string,
+      radius?: number,
+    ) => {
+      const col = color ?? randomSplatterColor();
+      const rad = radius ?? randomSplatterRadius();
+      addSplatterBase(position, normal, col, rad);
+
+      if (syncChannelRef.current) {
+        syncChannelRef.current.send({
+          type: "broadcast",
+          event: "splatter",
+          payload: {
+            position: { x: position.x, y: position.y, z: position.z },
+            normal: { x: normal.x, y: normal.y, z: normal.z },
+            color: col,
+            radius: rad,
+          },
+        });
+      }
+    },
+    [addSplatterBase],
+  );
+
+  const damageMockBase = useCallback(
     (
       id: MockEnemyId,
-      hitPoint: THREE.Vector3,
-      playerPos: THREE.Vector3,
+      hitPoint: { x: number; y: number; z: number },
+      playerPos: { x: number; y: number; z: number },
       damage = 25,
     ) => {
       setMockEnemies((prev) => {
@@ -300,7 +367,11 @@ export function GameProvider({
           setCoins((c) => c + 25);
         }
 
-        const dir = hitPoint.clone().sub(playerPos).normalize();
+        const dir = new THREE.Vector3(
+          hitPoint.x - playerPos.x,
+          hitPoint.y - playerPos.y,
+          hitPoint.z - playerPos.z
+        ).normalize();
         const localPosition: [number, number, number] = [
           dir.x * 0.35,
           0.2 + (Math.random() - 0.5) * 0.25,
@@ -331,12 +402,48 @@ export function GameProvider({
     [],
   );
 
+  const damageMock = useCallback(
+    (
+      id: MockEnemyId,
+      hitPoint: THREE.Vector3,
+      playerPos: THREE.Vector3,
+      damage = 25,
+    ) => {
+      damageMockBase(id, hitPoint, playerPos, damage);
+
+      if (syncChannelRef.current) {
+        syncChannelRef.current.send({
+          type: "broadcast",
+          event: "damageMock",
+          payload: {
+            id,
+            hitPoint: { x: hitPoint.x, y: hitPoint.y, z: hitPoint.z },
+            playerPos: { x: playerPos.x, y: playerPos.y, z: playerPos.z },
+            damage,
+          },
+        });
+      }
+    },
+    [damageMockBase],
+  );
+
+  const repairDefendBoxBase = useCallback((amount: number) => {
+    setDefendBoxHP((hp) => Math.min(BOX_MAX_HP, hp + amount));
+  }, []);
+
   const purchaseTapeRepair = useCallback(() => {
     if (coins < 50 || defendBoxDestroyed) return false;
     setCoins((c) => c - 50);
-    setDefendBoxHP((hp) => Math.min(BOX_MAX_HP, hp + 100));
+    repairDefendBoxBase(100);
+    if (syncChannelRef.current) {
+      syncChannelRef.current.send({
+        type: "broadcast",
+        event: "repairDefendBox",
+        payload: { amount: 100 },
+      });
+    }
     return true;
-  }, [coins, defendBoxDestroyed]);
+  }, [coins, defendBoxDestroyed, repairDefendBoxBase]);
 
   const purchaseAmmoPack = useCallback(() => {
     if (coins < 30) return false;
@@ -396,7 +503,7 @@ export function GameProvider({
     setBoxHp((prev) => Math.max(0, prev - amount));
   }, []);
 
-  const damageDefendBox = useCallback(
+  const damageDefendBoxBase = useCallback(
     (amount: number) => {
       setDefendBoxHP((prev) => {
         if (prev <= 0) return 0;
@@ -417,7 +524,8 @@ export function GameProvider({
                 ),
               );
             const normal = pos.clone().sub(center).normalize();
-            addSplatter(
+            // Use addSplatterBase directly to avoid double-broadcasting explosion splatters
+            addSplatterBase(
               pos,
               normal,
               randomSplatterColor(),
@@ -428,7 +536,21 @@ export function GameProvider({
         return next;
       });
     },
-    [addSplatter],
+    [addSplatterBase],
+  );
+
+  const damageDefendBox = useCallback(
+    (amount: number) => {
+      damageDefendBoxBase(amount);
+      if (syncChannelRef.current) {
+        syncChannelRef.current.send({
+          type: "broadcast",
+          event: "damageDefendBox",
+          payload: { amount },
+        });
+      }
+    },
+    [damageDefendBoxBase],
   );
 
   const triggerWeaponThrow = useCallback(() => {
@@ -631,6 +753,8 @@ export function GameProvider({
       team,
       playerName: playerName || "",
       roomCode: roomCode || "",
+      remotePlayers,
+      setRemotePlayers,
     }),
     [
       pos,
@@ -678,6 +802,8 @@ export function GameProvider({
       team,
       playerName,
       roomCode,
+      remotePlayers,
+      setRemotePlayers,
     ],
   );
 

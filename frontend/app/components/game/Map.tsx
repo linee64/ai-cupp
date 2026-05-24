@@ -21,7 +21,6 @@ import {
 } from "./arenaVisuals";
 import { createSpawnZoneTexture, createTacticalGridFloorTexture } from "./textures";
 import { useGame } from "./GameContext";
-import { usePresence } from "../../lib/usePresence";
 
 const MOCK_ENEMIES = [
   { id: "mock-0" as const, position: MOCK_ENEMY_POSITIONS[0].position, rotationY: Math.PI, index: 0 },
@@ -309,20 +308,7 @@ function Mountain({
 }
 
 function RemotePlayers() {
-  const { roomCode, playerName, team, playerViewRef } = useGame();
-
-  const remotePlayers = usePresence({
-    roomCode,
-    playerName,
-    team,
-    enabled: !!roomCode && !!playerName,
-    getPosition: () => ({
-      x: playerViewRef.current.x,
-      y: 1.0,
-      z: playerViewRef.current.z,
-      yaw: playerViewRef.current.yaw,
-    }),
-  });
+  const { remotePlayers } = useGame();
 
   return (
     <>

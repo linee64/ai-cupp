@@ -102,10 +102,13 @@ export default function FPSPlayer() {
     roomCode,
     playerName,
     team,
+    weaponShootTick,
+    weaponThrowTick,
+    setRemotePlayers,
   } = useGame();
 
-  // Broadcast our position to all other players via Supabase Presence
-  usePresence({
+  // Broadcast our position and receive all other players via Supabase Presence
+  const presencePlayers = usePresence({
     roomCode,
     playerName,
     team,
@@ -115,8 +118,16 @@ export default function FPSPlayer() {
       y: playerY.current,
       z: playerViewRef.current.z,
       yaw: playerViewRef.current.yaw,
+      activeWeapon,
+      shootTick: weaponShootTick,
+      throwTick: weaponThrowTick,
     }),
   });
+
+  // Sync remote players into GameContext so Map can render them
+  useEffect(() => {
+    setRemotePlayers(presencePlayers);
+  }, [presencePlayers, setRemotePlayers]);
 
   useEffect(() => {
     camera.position.set(pos.x, playerY.current, pos.z);

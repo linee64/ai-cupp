@@ -1,10 +1,11 @@
 "use client";
 
 import * as THREE from "three";
-import { useRef } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import type { RemotePlayerState } from "../../lib/usePresence";
+import { playMarkerShot, playBalloonThrow } from "../../lib/audio";
 
 const ATTACK_COLOR = "#ff3d00";
 const DEFEND_COLOR = "#00c2ff";
@@ -15,7 +16,29 @@ export default function RemotePlayer({ player }: { player: RemotePlayerState }) 
   const targetYaw = useRef(player.yaw);
   const bobRef = useRef(0);
 
+  const prevShootTick = useRef(player.shootTick || 0);
+  const prevThrowTick = useRef(player.throwTick || 0);
+  const [muzzleFlash, setMuzzleFlash] = useState(false);
+
   const bodyColor = player.team === "defend" ? DEFEND_COLOR : ATTACK_COLOR;
+
+  // Track shooting/throwing tick updates to play sounds and muzzle flashes
+  useEffect(() => {
+    if (player.shootTick !== undefined && player.shootTick > prevShootTick.current) {
+      prevShootTick.current = player.shootTick;
+      playMarkerShot();
+      setMuzzleFlash(true);
+      const timer = setTimeout(() => setMuzzleFlash(false), 80);
+      return () => clearTimeout(timer);
+    }
+  }, [player.shootTick]);
+
+  useEffect(() => {
+    if (player.throwTick !== undefined && player.throwTick > prevThrowTick.current) {
+      prevThrowTick.current = player.throwTick;
+      playBalloonThrow();
+    }
+  }, [player.throwTick]);
 
   // Smoothly interpolate to received position (lerp)
   useFrame((_, delta) => {
@@ -76,6 +99,60 @@ export default function RemotePlayer({ player }: { player: RemotePlayerState }) 
         <sphereGeometry args={[0.18, 8, 8]} />
         <meshStandardMaterial color={bodyColor} roughness={0.3} metalness={0.1} />
       </mesh>
+
+      {/* Held Weapon */}
+      {player.activeWeapon === 2 ? (
+        // Balloon
+        <group position={[0.45, 0.05, 0.35]}>
+          <mesh castShadow>
+            <sphereGeometry args={[0.14, 16, 16]} />
+            <meshPhysicalMaterial
+              color="#00aaff"
+              transparent
+              opacity={0.85}
+              roughness={0.1}
+              transmission={0.3}
+              emissive="#004488"
+              emissiveIntensity={0.2}
+            />
+          </mesh>
+          <mesh position={[0, 0.15, 0]}>
+            <sphereGeometry args={[0.02, 8, 8]} />
+            <meshStandardMaterial color="#0077cc" />
+          </mesh>
+        </group>
+      ) : (
+        // Paint Marker Gun
+        <group position={[0.45, 0.05, 0.25]} rotation={[0, 0, 0]}>
+          {/* Main Gun Body */}
+          <mesh castShadow>
+            <boxGeometry args={[0.08, 0.1, 0.35]} />
+            <meshStandardMaterial color="#222222" roughness={0.7} />
+          </mesh>
+          {/* Gun Barrel */}
+          <mesh position={[0, 0.02, -0.22]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.02, 0.02, 0.2, 8]} />
+            <meshStandardMaterial color="#111111" />
+          </mesh>
+          {/* Paint Hopper */}
+          <mesh position={[0, 0.09, 0.02]} scale={[1, 0.6, 1]}>
+            <sphereGeometry args={[0.065, 12, 12]} />
+            <meshStandardMaterial color="#e8ff00" />
+          </mesh>
+
+          {/* Muzzle Flash Effect */}
+          {muzzleFlash && (
+            <mesh position={[0, 0.02, -0.34]}>
+              <sphereGeometry args={[0.06, 8, 8]} />
+              <meshStandardMaterial
+                color="#ffff00"
+                emissive="#ffff00"
+                emissiveIntensity={8}
+              />
+            </mesh>
+          )}
+        </group>
+      )}
 
       {/* Legs */}
       <mesh position={[-0.2, -0.45, 0]} scale={[1, 0.8, 1]}>

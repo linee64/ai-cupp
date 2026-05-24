@@ -11,6 +11,9 @@ export interface RemotePlayerState {
   y: number;
   z: number;
   yaw: number;
+  activeWeapon: 1 | 2;
+  shootTick: number;
+  throwTick: number;
 }
 
 /**
@@ -27,8 +30,16 @@ export function usePresence({
   roomCode: string;
   playerName: string;
   team: "attack" | "defend";
-  /** Called every broadcast tick — return current {x, y, z, yaw} */
-  getPosition: () => { x: number; y: number; z: number; yaw: number };
+  /** Called every broadcast tick — return current {x, y, z, yaw, activeWeapon, shootTick, throwTick} */
+  getPosition: () => {
+    x: number;
+    y: number;
+    z: number;
+    yaw: number;
+    activeWeapon: 1 | 2;
+    shootTick: number;
+    throwTick: number;
+  };
   enabled: boolean;
 }): RemotePlayerState[] {
   const [remotePlayers, setRemotePlayers] = useState<RemotePlayerState[]>([]);
@@ -73,6 +84,9 @@ export function usePresence({
               y: Math.round(pos.y * 100) / 100,
               z: Math.round(pos.z * 100) / 100,
               yaw: Math.round(pos.yaw * 1000) / 1000,
+              activeWeapon: pos.activeWeapon,
+              shootTick: pos.shootTick,
+              throwTick: pos.throwTick,
             });
           };
 
